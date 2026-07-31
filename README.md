@@ -74,7 +74,7 @@ Built with a clean modular architecture, structured logging, typed models, and D
 ## Project Structure
 
 ```text
-telegram_downloader/
+TelegramDownLoader/
 ├── app.py                      # Entry point
 ├── config.py                   # Env-based settings
 ├── requirements.txt
@@ -120,8 +120,8 @@ telegram_downloader/
 ### 1. Clone
 
 ```bash
-git clone https://github.com/DevZ44d/telegram_downloader.git
-cd telegram_downloader
+git clone https://github.com/DevZ44d/TelegramDownLoader.git
+cd TelegramDownLoader
 ```
 
 ### 2. Virtual environment
