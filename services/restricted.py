@@ -13,7 +13,7 @@ async def download_post(parsed: ParsedLink) -> DownloadResult:
     if not parsed.peer or parsed.message_id is None:
         return DownloadResult(
             success=False,
-            error="رابط المنشور غير صالح",
+            error="Invalid post link",
             source_link=parsed.raw,
         )
 
@@ -25,7 +25,7 @@ async def download_post(parsed: ParsedLink) -> DownloadResult:
     if to_id - from_id > 50:
         return DownloadResult(
             success=False,
-            error="الحد الأقصى للنطاق هو 50 رسالة",
+            error="Maximum range is 50 messages",
             source_link=parsed.raw,
         )
 
@@ -41,12 +41,12 @@ async def download_post(parsed: ParsedLink) -> DownloadResult:
                 items = await download_telethon_media(msg)
                 return msg_id, items
             except AccessDeniedError:
-                return msg_id, f"رسالة {msg_id}: لا يمكن الوصول"
+                return msg_id, f"Message {msg_id}: Access denied"
             except MediaNotFoundError:
-                return msg_id, f"رسالة {msg_id}: لا يوجد ميديا"
+                return msg_id, f"Message {msg_id}: No media found"
             except Exception as exc:
                 logger.exception("Error on message %s", msg_id)
-                return msg_id, f"رسالة {msg_id}: {exc}"
+                return msg_id, f"Message {msg_id}: {exc}"
 
     results = await asyncio.gather(*[_one(mid) for mid in msg_ids])
 
@@ -69,6 +69,6 @@ async def download_post(parsed: ParsedLink) -> DownloadResult:
 
     return DownloadResult(
         success=False,
-        error=errors[0] if errors else "لم يتم العثور على محتوى قابل للتحميل",
+        error=errors[0] if errors else "No downloadable content found",
         source_link=parsed.raw,
     )
