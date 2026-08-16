@@ -26,11 +26,10 @@ def register_handlers(app: Application) -> None:
     app.add_handler(CallbackQueryHandler(back_home_callback, pattern=f"^{CALLBACK_BACK_HOME}$"))
     app.add_handler(CallbackQueryHandler(features_callback, pattern=f"^{CALLBACK_FEATURES}$"))
 
-    # Stories first (more specific pattern)
+    # Stories first (more specific pattern) — works in private + groups
     app.add_handler(
         MessageHandler(
-            filters.ChatType.PRIVATE
-            & filters.Regex(r"https?://t\.me/[\w\d_]+/s/\d+"),
+            filters.Regex(r"https?://t\.me/[\w\d_]+/s/\d+"),
             story_handler,
         )
     )
@@ -38,8 +37,7 @@ def register_handlers(app: Application) -> None:
     # Public / restricted posts
     app.add_handler(
         MessageHandler(
-            filters.ChatType.PRIVATE
-            & filters.TEXT
+            filters.TEXT
             & filters.Regex(r"https?://t\.me/")
             & ~filters.Regex(r"https?://t\.me/[\w\d_]+/s/\d+"),
             restricted_handler,
@@ -49,17 +47,16 @@ def register_handlers(app: Application) -> None:
     # Instagram public media (reels, posts, tv, profile pictures)
     app.add_handler(
         MessageHandler(
-            filters.ChatType.PRIVATE
-            & filters.TEXT
+            filters.TEXT
             & filters.Regex(r"https?://(www\.)?instagram\.com/"),
             instagram_handler,
         )
     )
 
+    # Pinterest
     app.add_handler(
         MessageHandler(
-            filters.ChatType.PRIVATE
-            & filters.TEXT
+            filters.TEXT
             & filters.Regex(
                 r"https?://((www|[a-z]{2})\.)?(pin\.it/|pinterest\.[a-z.]+/)"
             ),
