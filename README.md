@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Fast • Clean • Reliable</strong><br/>
-  Download Stories, public posts, and restricted media from Telegram — in seconds.
+  Download Stories, public posts, restricted media, Instagram & Pinterest — in seconds.
 </p>
 
 <p align="center">
@@ -22,6 +22,8 @@
   <img src="https://img.shields.io/badge/Stories-supported-26A5E4?style=flat-square" alt="Stories"/>
   <img src="https://img.shields.io/badge/Restricted-content-orange?style=flat-square" alt="Restricted"/>
   <img src="https://img.shields.io/badge/Public_posts-instant_copy-brightgreen?style=flat-square" alt="Public"/>
+  <img src="https://img.shields.io/badge/Instagram-public_media-E4405F?style=flat-square&logo=instagram&logoColor=white" alt="Instagram"/>
+  <img src="https://img.shields.io/badge/Pinterest-photos_&_videos-E60023?style=flat-square&logo=pinterest&logoColor=white" alt="Pinterest"/>
   <img src="https://img.shields.io/badge/Colored_buttons-style_API-purple?style=flat-square" alt="Style"/>
 </p>
 
@@ -29,13 +31,15 @@
 
 ## Overview
 
-**Telegram Downloader** is a production-ready bot that fetches media from Telegram links and delivers it to the user in private chat.
+**Telegram Downloader** is a production-ready bot that fetches media from Telegram, Instagram, and Pinterest links and delivers it to the user in private chat.
 
 | Source | Method | Speed |
 |--------|--------|-------|
 | Public channel / group posts | `copy_message` (no re-upload) | Instant |
 | Restricted content | User account → download → bot re-upload | Depends on file size |
 | Stories (photo / video) | Telethon Stories API | Depends on file size |
+| Instagram public media | Extractor → download → bot upload | Depends on file size |
+| Pinterest pins | Page scrape / gallery-dl / yt-dlp → bot upload | Depends on file size |
 
 Built with a clean modular architecture, structured logging, typed models, and Docker support.
 
@@ -43,13 +47,28 @@ Built with a clean modular architecture, structured logging, typed models, and D
 
 ## Features
 
+### Telegram
 - **Stories** — photo & video via Telethon `GetStoriesByID`
 - **Public posts** — instant copy, no bandwidth waste
 - **Restricted media** — when the logged-in account has access
 - **Media types** — photos, videos, documents, voice, audio, animations, stickers
-- **Message ranges** — `https://t.me/channel/100-110` (up to 50)
-- **Colored inline buttons** — `primary` / `success` / `danger` (Bot API style)
+- **Message ranges** — `https://t.me/channel/100-110` (up to 50 messages)
 - **Parallel downloads** — up to 5 concurrent for ranges
+
+### Instagram
+- **Public media** — reels, posts, IGTV, carousels, public profile pictures
+- **No login required** — works with public content only
+- **Multi-extractor fallback** — `parth-dl` → `gallery-dl` → `Instaloader`
+- **Captions** — original caption is sent with the media
+
+### Pinterest
+- **Photos & videos** — single pin download (`pin.it` / `pinterest.com`)
+- **Smart extraction** — page scrape for videos (with audio), gallery-dl for images
+- **Captions** — pin description is sent under the media
+- **Clean temp folders** — temporary directories are removed after send
+
+### General
+- **Colored inline buttons** — `primary` / `success` / `danger` (Bot API style)
 - **High upload timeouts** — large files won’t fail mid-transfer
 - **`.env` configuration** — no secrets in code
 - **Structured logging** — clear, filterable output
@@ -57,6 +76,7 @@ Built with a clean modular architecture, structured logging, typed models, and D
 - **Type hints + async** throughout
 - **Docker-ready**
 - **No database** — stateless by design
+- **Auto cleanup** — temp files and empty folders are deleted after delivery
 
 ---
 
@@ -66,6 +86,8 @@ Built with a clean modular architecture, structured logging, typed models, and D
 |-------|------------|
 | Bot framework | [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot) ≥ 22.7 |
 | User / Stories API | [Telethon](https://github.com/LonamiWebs/Telethon) |
+| Instagram extractors | parth-dl, gallery-dl, Instaloader |
+| Pinterest extractors | Custom page scrape + gallery-dl + yt-dlp |
 | Config | `python-dotenv` |
 | Runtime | Python 3.11+ |
 
@@ -88,16 +110,38 @@ TelegramDownLoader/
 │   ├── logger.py
 │   └── exceptions.py
 │
+├── instagram/                  # Instagram public-media module
+│   ├── parser.py
+│   ├── models.py
+│   ├── exceptions.py
+│   ├── manager.py
+│   ├── downloader.py
+│   ├── utils.py
+│   └── extractors/
+│       ├── base.py
+│       ├── parth.py
+│       ├── gallery_dl.py
+│       └── instaloader.py
+│
+├── pinterest/                  # Pinterest module
+│   ├── parser.py               # URL detection & normalization
+│   ├── downloader.py           # Page scrape + gallery-dl + yt-dlp
+│   └── exceptions.py
+│
 ├── handlers/
-│   ├── start.py                # /start + styled button
+│   ├── start.py                # /start + styled buttons
 │   ├── story.py                # Story links
-│   └── restricted.py           # Public / restricted posts
+│   ├── restricted.py           # Public / restricted posts
+│   ├── instagram.py            # Instagram links
+│   └── pinterest.py            # Pinterest links
 │
 ├── services/
 │   ├── parser.py               # Link detection
 │   ├── story.py
 │   ├── restricted.py           # Parallel download pipeline
-│   └── sender.py               # Media delivery + keyboards
+│   ├── instagram.py            # Instagram extract → download → normalize
+│   ├── pinterest.py            # Pinterest download → normalize
+│   └── sender.py               # Media delivery + keyboards + cleanup
 │
 ├── tg/
 │   ├── story.py                # Telethon GetStoriesByID
@@ -107,9 +151,11 @@ TelegramDownLoader/
 │   ├── media.py                # MediaType, MediaItem, DownloadResult
 │   └── result.py
 │
+├── tests/                      # Unit tests (mocked, no live network)
+│
 └── utils/
     ├── regex.py
-    ├── files.py
+    ├── files.py                # safe_remove + safe_remove_dir
     └── helpers.py
 ```
 
@@ -151,12 +197,33 @@ cp .env.example .env
 Edit `.env`:
 
 ```env
+# Telegram API credentials (https://my.telegram.org)
 API_ID=12345678
 API_HASH=your_api_hash
 BOT_TOKEN=123456:ABC-DEF...
-SESSION_STRING=                 # optional but required for Stories & restricted
+
+# Optional: Telethon session string for the user account
+# (required for Stories + restricted content the bot alone cannot access)
+SESSION_STRING=
+
+# Recommended: Instagram cookies file (helps with stories, rate limits & restricted public media)
+INSTAGRAM_COOKIES=cookies.txt
+
+# Session file names (do not change unless you know what you are doing)
+SESSION_BOT_NAME=session_bot
+SESSION_ACCOUNT_NAME=session_account
+
+# Developer / channel links
 DEVELOPER_URL=https://t.me/YourUsername
+CHANNEL_URL=https://t.me/YourChannel
+
+# Temporary download directory
 DOWNLOAD_DIR=downloads
+
+# Max file size in MB (Telegram limit is ~2GB)
+MAX_FILE_SIZE_MB=2000
+
+# Logging level: DEBUG, INFO, WARNING, ERROR
 LOG_LEVEL=INFO
 ```
 
@@ -166,9 +233,17 @@ LOG_LEVEL=INFO
 | `API_HASH` | Yes | From my.telegram.org |
 | `BOT_TOKEN` | Yes | From [@BotFather](https://t.me/BotFather) |
 | `SESSION_STRING` | Recommended | Telethon string session (Stories + restricted) |
+| `INSTAGRAM_COOKIES` | Recommended | Path to Instagram cookies file (e.g. `cookies.txt`) — improves stories, rate limits & access to some public media |
 | `DEVELOPER_URL` | No | Shown on the start button |
+| `CHANNEL_URL` | No | Optional channel button on start |
 | `DOWNLOAD_DIR` | No | Temp files (default: `downloads`) |
+| `MAX_FILE_SIZE_MB` | No | Max file size in MB (default: `2000`) |
 | `LOG_LEVEL` | No | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
+| `INSTAGRAM_ENABLED` | No | Turn Instagram module on/off (default: `true`) |
+| `INSTAGRAM_MAX_FILE_SIZE_MB` | No | Max size per Instagram file (default: `2000`) |
+| `INSTAGRAM_MAX_CONCURRENT_DOWNLOADS` | No | Max parallel downloads per carousel (default: `3`) |
+| `INSTAGRAM_TIMEOUT` | No | Per-request timeout in seconds (default: `30`) |
+| `INSTAGRAM_MAX_RETRIES` | No | Retries per file on transient failures (default: `2`) |
 
 #### Generate a Telethon session string
 
@@ -207,6 +282,18 @@ docker run --env-file .env \
 
 ---
 
+## Tests
+
+The Instagram module ships with a unit test suite that mocks every
+extractor — no live Instagram requests, no network access required.
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+---
+
 ## Supported Links
 
 | Type | Example |
@@ -215,8 +302,65 @@ docker run --env-file .env \
 | Public post | `https://t.me/channel/456` |
 | Message range | `https://t.me/channel/100-105` |
 | Restricted post* | Same as public (account must be a member) |
+| Instagram reel/post/tv | `https://www.instagram.com/reel/CzXyzAbC1/` |
+| Instagram public profile | `https://www.instagram.com/username/` |
+| Pinterest pin | `https://pin.it/xxxxx` or `https://www.pinterest.com/pin/123456/` |
 
 \* Requires a valid `SESSION_STRING`.
+
+---
+
+## Instagram Downloader
+
+Send any public Instagram link (reel, post, tv, carousel, or a public
+profile URL) and the bot fetches it the same way it fetches Telegram
+content — no separate command.
+
+```text
+User sends Instagram URL
+        ↓
+URL parser (instagram/parser.py)
+        ↓
+Extractor manager — tries parth-dl → gallery-dl → Instaloader
+        ↓
+Best available extractor returns normalized metadata
+        ↓
+Download engine streams the file(s) to downloads/temp/instagram/
+        ↓
+Telegram sender delivers it + caption, then cleans up
+```
+
+**No Instagram login required.** Private accounts, login walls, Stories/Highlights, and bulk scraping are not supported by design.
+
+---
+
+## Pinterest Downloader
+
+Send any Pinterest pin link (`pin.it` or `pinterest.com/pin/...`) and the bot downloads the photo or video.
+
+```text
+User sends Pinterest URL
+        ↓
+URL parser (pinterest/parser.py)
+        ↓
+Smart downloader:
+  1. Page scrape (best for videos with audio + caption)
+  2. gallery-dl (best for images)
+  3. yt-dlp (final fallback)
+        ↓
+Single best media file is selected
+        ↓
+Telegram sender delivers it + pin description as caption
+        ↓
+Temp file + empty folder are cleaned up
+```
+
+**Features:**
+- One media per pin (no multi-image spam)
+- Videos prefer progressive MP4 with audio
+- Images use gallery-dl for reliability
+- Pin description/caption is attached under the media
+- Temporary folders are automatically removed after send
 
 ---
 
@@ -246,7 +390,7 @@ User sends link
        │
        ▼
 ┌──────────────┐
-│ Link parser  │  → Story / Public / Invite / Unknown
+│ Link parser  │  → Story / Public / Restricted / Instagram / Pinterest
 └──────┬───────┘
        │
        ├─ Story ──────────► Telethon GetStoriesByID → download → bot send
@@ -256,11 +400,16 @@ User sends link
        │                         ▼
        │                    Telethon download → bot re-upload
        │
-       └─ Restricted ─────► Telethon only → download → bot re-upload
+       ├─ Restricted ─────► Telethon only → download → bot re-upload
+       │
+       ├─ Instagram ──────► Extractor fallback → download → bot upload + caption
+       │
+       └─ Pinterest ──────► Page scrape / gallery-dl / yt-dlp → bot upload + caption
 ```
 
-- **Public**: zero download when the bot can see the chat.
-- **Restricted / Stories**: user client fetches media; bot delivers it to the user.
+- **Public Telegram**: zero download when the bot can see the chat.
+- **Restricted / Stories**: user client fetches media; bot delivers it.
+- **Instagram / Pinterest**: extract → download to temp → send → cleanup.
 
 ---
 
@@ -269,7 +418,7 @@ User sends link
 - Never commit `.env` or session files.
 - `SESSION_STRING` grants full account access — treat it like a password.
 - The bot only answers in **private** chats.
-- Temp files are deleted after send.
+- Temp files and empty folders are deleted after send.
 
 ---
 
@@ -284,7 +433,7 @@ Keep code typed, async, and consistent with the existing layout.
 
 ---
 
-
 <p align="center">
   <sub>Built for speed and clarity. Drop a link. Get the media.</sub>
 </p>
+```
