@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
+import shutil
 
 from config import settings
 from core.logger import logger
@@ -28,6 +29,19 @@ def safe_remove(path: Optional[Path | str]) -> None:
             logger.debug("Removed temporary file: %s", p)
     except OSError as exc:
         logger.warning("Failed to remove %s: %s", path, exc)
+
+
+def safe_remove_dir(path: Optional[Path | str]) -> None:
+    """Remove a temporary directory (and everything inside it)."""
+    if not path:
+        return
+    try:
+        p = Path(path)
+        if p.exists() and p.is_dir():
+            shutil.rmtree(p, ignore_errors=True)
+            logger.debug("Removed temporary directory: %s", p)
+    except OSError as exc:
+        logger.warning("Failed to remove directory %s: %s", path, exc)
 
 
 def extension_from_mime(mime: Optional[str], fallback: str = ".bin") -> str:
